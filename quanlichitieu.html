@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản Lý Chi Tiêu & Dòng Tiền</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: #f1f5f9; }
+    .tab-active { border-bottom: 3px solid #2563eb; color: #1d4ed8; font-weight: 700; background-color: #eff6ff; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800">
+
+  <!-- THÔNG BÁO TOAST -->
+  <div id="toast" class="fixed top-5 right-5 z-50 hidden bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium transition-all"></div>
+
+  <!-- MÀN HÌNH ĐĂNG NHẬP / BẢO MẬT -->
+  <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl p-8 border border-slate-100">
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-md">
+          <i class="fa-solid fa-wallet"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-800">Quản Lý Dòng Tiền</h1>
+        <p class="text-sm text-slate-500 mt-1">Đăng nhập tài khoản bảo mật để đồng bộ dữ liệu</p>
+      </div>
+
+      <div id="auth-error" class="hidden mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs"></div>
+
+      <form id="auth-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email</label>
+          <input type="email" id="auth-email" required placeholder="nhap@email.com"
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Mật khẩu</label>
+          <input type="password" id="auth-password" required placeholder="••••••••"
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
+        </div>
+        <div class="grid grid-cols-2 gap-3 pt-2">
+          <button type="submit" id="btn-login"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+            Đăng nhập
+          </button>
+          <button type="button" id="btn-register"
+            class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+            Đăng ký mới
+          </button>
+        </div>
+      </form>
+
+      <div class="relative my-6">
+        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200"></div></div>
+        <div class="relative flex justify-center text-xs uppercase"><span class="bg-white px-2 text-slate-400">Hoặc</span></div>
+      </div>
+
+      <button type="button" id="btn-demo-mode"
+        class="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+        <i class="fa-solid fa-bolt"></i> Dùng ngay (Lưu cục bộ khi chưa gắn Firebase)
+      </button>
+    </div>
+  </div>
+
+  <!-- MÀN HÌNH CHÍNH (DASHBOARD) -->
+  <div id="app-screen" class="hidden min-h-screen pb-12">
+    <!-- HEADER -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center text-lg font-bold">
+            <i class="fa-solid fa-chart-pie"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-800">Hệ Thống Quản Lý Thu Chi</h1>
+            <p id="user-status" class="text-xs text-emerald-600 font-medium"></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right">
+            <span class="text-xs text-slate-400 block">Tổng số dư tất cả tài khoản</span>
+            <span id="total-all-accounts" class="text-lg font-bold text-blue-600">0 ₫</span>
+          </div>
+          <button id="btn-logout" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 text-sm font-medium transition">
+            <i class="fa-solid fa-right-from-bracket mr-1"></i> Thoát
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 mt-6 space-y-6">
+
+      <!-- PHẦN 1: QUẢN LÝ TÀI KHOẢN (THÊM / XÓA TÀI KHOẢN) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-building-columns text-blue-600"></i> Danh Sách Tài Khoản / Quỹ Tiền
+            </h2>
+            <p class="text-xs text-slate-500">Chọn một tài khoản bên dưới để xem bảng dòng tiền riêng của tài khoản đó</p>
+          </div>
+
+          <!-- Form thêm tài khoản -->
+          <form id="add-account-form" class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+            <input type="text" id="new-acc-name" required placeholder="Tên TK (VD: Vietcombank, Tiền mặt)"
+              class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-56" />
+            <input type="number" id="new-acc-balance" placeholder="Số dư đầu (0)" value="0"
+              class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-36" />
+            <button type="submit"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i> Thêm tài khoản
+            </button>
+          </form>
+        </div>
+
+        <!-- Danh sách thẻ tài khoản -->
+        <div id="accounts-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          <!-- Render động bằng JS -->
+        </div>
+      </section>
+
+      <!-- PHẦN 2: NHẬP KHOẢN THU - NHẬP KHOẢN CHI - XIN XÉT DUYỆT -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- CỘT 1: NHẬP KHOẢN THU -->
+        <div class="bg-white rounded-2xl shadow-sm border border-emerald-200 p-5">
+          <div class="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <i class="fa-solid fa-arrow-down-long"></i>
+            </div>
+            <h3 class="font-bold text-slate-800">Nhập Khoản Thu</h3>
+          </div>
+          <form id="income-form" class="space-y-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Số tiền thu (VNĐ)</label>
+              <input type="number" id="in-amount" required min="1" placeholder="VD: 500000"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nguồn tiền từ đâu</label>
+              <input type="text" id="in-source" required placeholder="VD: Khách thanh toán, Lương, Thu hồi nợ..."
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Thu vào tài khoản nào</label>
+              <select id="in-account" required
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="">-- Chọn tài khoản nhận --</option>
+              </select>
+            </div>
+            <button type="submit"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm transition shadow-sm">
+              <i class="fa-solid fa-circle-plus mr-1"></i> Cộng vào tài khoản
+            </button>
+          </form>
+        </div>
+
+        <!-- CỘT 2: NHẬP KHOẢN CHI -->
+        <div class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5">
+          <div class="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
+              <i class="fa-solid fa-arrow-up-long"></i>
+            </div>
+            <h3 class="font-bold text-slate-800">Nhập Khoản Chi</h3>
+          </div>
+          <form id="expense-form" class="space-y-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Số tiền chi (VNĐ)</label>
+              <input type="number" id="out-amount" required min="1" placeholder="VD: 200000"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-rose-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Mục đích chi</label>
+              <input type="text" id="out-purpose" required placeholder="VD: Mua vật tư, Thanh toán tiền điện..."
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-rose-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Chi từ tài khoản nào</label>
+              <select id="out-account" required
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                <option value="">-- Chọn tài khoản trích chi --</option>
+              </select>
+            </div>
+            <button type="submit"
+              class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 rounded-xl text-sm transition shadow-sm">
+              <i class="fa-solid fa-circle-minus mr-1"></i> Trừ từ tài khoản
+            </button>
+          </form>
+        </div>
+
+        <!-- CỘT 3: XIN XÉT DUYỆT KHOẢN CHI -->
+        <div class="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                <i class="fa-solid fa-file-signature"></i>
+              </div>
+              <h3 class="font-bold text-slate-800">Xin Xét Duyệt Khoản Chi</h3>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Số tiền cần duyệt (VNĐ)</label>
+                <input type="number" id="req-amount" placeholder="Nhập số tiền..."
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Mục đích chi</label>
+                <input type="text" id="req-purpose" placeholder="Nhập lý do / mục đích chi..."
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Văn bản xin xét duyệt (Tự động tạo)</label>
+                <textarea id="req-output" rows="4" readonly
+                  class="w-full p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-xs text-slate-700 font-mono focus:outline-none resize-none"
+                  placeholder="Nhập số tiền và mục đích chi ở trên để tạo văn bản..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" id="btn-copy-req"
+            class="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-2">
+            <i class="fa-regular fa-copy"></i> Copy văn bản xét duyệt
+          </button>
+        </div>
+
+      </section>
+
+      <!-- PHẦN 3: BẢNG DÒNG TIỀN RIÊNG CỦA TỪNG TÀI KHOẢN -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-table-list text-blue-600"></i>
+              Bảng Dòng Tiền Riêng: <span id="current-table-acc-name" class="text-blue-600">Chưa chọn tài khoản</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Hiển thị chi tiết mọi khoản thu và khoản chi của riêng tài khoản đang chọn</p>
+          </div>
+
+          <!-- Thống kê nhanh của tài khoản đang chọn -->
+          <div class="flex flex-wrap gap-3 text-xs">
+            <div class="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
+              <span class="text-slate-500 block">Tổng thu TK này</span>
+              <strong id="acc-total-in" class="text-emerald-600 text-sm">0 ₫</strong>
+            </div>
+            <div class="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200">
+              <span class="text-slate-500 block">Tổng chi TK này</span>
+              <strong id="acc-total-out" class="text-rose-600 text-sm">0 ₫</strong>
+            </div>
+            <div class="px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+              <span class="text-slate-500 block">Số dư hiện tại</span>
+              <strong id="acc-current-bal" class="text-blue-600 text-sm">0 ₫</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bảng dữ liệu -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                <th class="py-3.5 px-4 font-semibold">Thời gian</th>
+                <th class="py-3.5 px-4 font-semibold">Loại giao dịch</th>
+                <th class="py-3.5 px-4 font-semibold">Nguồn thu / Mục đích chi</th>
+                <th class="py-3.5 px-4 font-semibold text-right">Số tiền</th>
+                <th class="py-3.5 px-4 font-semibold text-center">Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="cashflow-tbody" class="divide-y divide-slate-100 text-sm">
+              <!-- Render động bằng JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- LOGIC JAVASCRIPT & FIREBASE MODULE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      deleteDoc,
+      doc,
+      updateDoc,
+      onSnapshot,
+      query,
+      orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // =========================================================================
+    // 1. DÁN CẤU HÌNH FIREBASE CỦA BẠN VÀO ĐÂY
+    // =========================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyA3T3ieR1CcC8bn5Ahx4BTXLRWRv3FArzY",
+  authDomain: "quanlichitieu-309d3.firebaseapp.com",
+  projectId: "quanlichitieu-309d3",
+  storageBucket: "quanlichitieu-309d3.firebasestorage.app",
+  messagingSenderId: "781705621246",
+  appId: "1:781705621246:web:a090f5228eccb7ad4affaf",
+  measurementId: "G-RRHFY1N26E"
+};
+
+    const isFirebaseConfigured = firebaseConfig.apiKey !== "AIzaSyA3T3ieR1CcC8bn5Ahx4BTXLRWRv3FArzY";
+    let app, auth, db;
+    if (isFirebaseConfigured) {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+    }
+
+    // Trạng thái ứng dụng
+    let isDemoMode = false;
+    let currentUser = null;
+    let accounts = [];
+    let transactions = [];
+    let selectedAccountId = null;
+    let unsubAccounts = null;
+    let unsubTransactions = null;
+
+    // Tiện ích định dạng tiền VNĐ
+    const formatVND = (num) => new Intl.NumberFormat('vi-VN').format(Number(num) || 0) + ' ₫';
+
+    const showToast = (msg) => {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2800);
+    };
+
+    // =========================================================================
+    // 2. XỬ LÝ ĐĂNG NHẬP FIREBASE & CHẾ ĐỘ LƯU CỤC BỘ
+    // =========================================================================
+    const authScreen = document.getElementById('auth-screen');
+    const appScreen = document.getElementById('app-screen');
+    const authError = document.getElementById('auth-error');
+
+    const showAuthError = (msg) => {
+      authError.textContent = msg;
+      authError.classList.remove('hidden');
+    };
+
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!isFirebaseConfigured) {
+        showAuthError("Bạn chưa thay firebaseConfig trong code. Hãy nhấn nút 'Dùng ngay (Lưu cục bộ)' bên dưới hoặc gắn cấu hình Firebase.");
+        return;
+      }
+      const email = document.getElementById('auth-email').value.trim();
+      const pass = document.getElementById('auth-password').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+      } catch (err) {
+        showAuthError("Đăng nhập thất bại: " + err.message);
+      }
+    });
+
+    document.getElementById('btn-register').addEventListener('click', async () => {
+      if (!isFirebaseConfigured) {
+        showAuthError("Bạn chưa thay firebaseConfig trong code. Hãy nhấn nút 'Dùng ngay (Lưu cục bộ)' bên dưới hoặc gắn cấu hình Firebase.");
+        return;
+      }
+      const email = document.getElementById('auth-email').value.trim();
+      const pass = document.getElementById('auth-password').value;
+      if (!email || pass.length < 6) {
+        showAuthError("Vui lòng nhập email hợp lệ và mật khẩu từ 6 ký tự trở lên.");
+        return;
+      }
+      try {
+        await createUserWithEmailAndPassword(auth, email, pass);
+        showToast("Đăng ký và đăng nhập thành công!");
+      } catch (err) {
+        showAuthError("Đăng ký thất bại: " + err.message);
+      }
+    });
+
+    document.getElementById('btn-demo-mode').addEventListener('click', () => {
+      isDemoMode = true;
+      currentUser = { uid: 'local-user', email: 'Đang lưu cục bộ (LocalStorage)' };
+      enterDashboard();
+    });
+
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+      if (isDemoMode) {
+        isDemoMode = false;
+        currentUser = null;
+        authScreen.classList.remove('hidden');
+        appScreen.classList.add('hidden');
+      } else if (auth) {
+        await signOut(auth);
+      }
+    });
+
+    if (isFirebaseConfigured) {
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          isDemoMode = false;
+          currentUser = user;
+          enterDashboard();
+        } else if (!isDemoMode) {
+          authScreen.classList.remove('hidden');
+          appScreen.classList.add('hidden');
+        }
+      });
+    }
+
+    // =========================================================================
+    // 3. ĐỒNG BỘ DỮ LIỆU (FIREBASE FIRESTORE HOẶC LOCALSTORAGE)
+    // =========================================================================
+    function enterDashboard() {
+      authScreen.classList.add('hidden');
+      appScreen.classList.remove('hidden');
+      document.getElementById('user-status').textContent = isDemoMode
+        ? "● Chế độ lưu trình duyệt (Chưa gắn Firebase)"
+        : `● Bảo mật Firebase: ${currentUser.email}`;
+
+      if (isDemoMode) {
+        loadLocalData();
+      } else {
+        subscribeFirestoreData(currentUser.uid);
+      }
+    }
+
+    function loadLocalData() {
+      accounts = JSON.parse(localStorage.getItem('cf_accounts') || '[]');
+      transactions = JSON.parse(localStorage.getItem('cf_transactions') || '[]');
+      if (accounts.length === 0) {
+        accounts = [
+          { id: 'acc_1', name: 'Tiền mặt', balance: 2000000 },
+          { id: 'acc_2', name: 'Tài khoản Ngân hàng', balance: 5000000 }
+        ];
+        saveLocalData();
+      }
+      if (!selectedAccountId && accounts.length > 0) selectedAccountId = accounts[0].id;
+      renderAll();
+    }
+
+    function saveLocalData() {
+      localStorage.setItem('cf_accounts', JSON.stringify(accounts));
+      localStorage.setItem('cf_transactions', JSON.stringify(transactions));
+    }
+
+    function subscribeFirestoreData(uid) {
+      if (unsubAccounts) unsubAccounts();
+      if (unsubTransactions) unsubTransactions();
+
+      const accRef = query(collection(db, `users/${uid}/accounts`), orderBy('createdAt', 'asc'));
+      unsubAccounts = onSnapshot(accRef, (snap) => {
+        accounts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!selectedAccountId && accounts.length > 0) {
+          selectedAccountId = accounts[0].id;
+        } else if (selectedAccountId && !accounts.some(a => a.id === selectedAccountId)) {
+          selectedAccountId = accounts.length > 0 ? accounts[0].id : null;
+        }
+        renderAll();
+      });
+
+      const txRef = query(collection(db, `users/${uid}/transactions`), orderBy('createdAt', 'desc'));
+      unsubTransactions = onSnapshot(txRef, (snap) => {
+        transactions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderAll();
+      });
+    }
+
+    // =========================================================================
+    // 4. THÊM / XÓA TÀI KHOẢN & GHI NHẬN THU CHI
+    // =========================================================================
+    document.getElementById('add-account-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('new-acc-name').value.trim();
+      const initBal = Number(document.getElementById('new-acc-balance').value) || 0;
+      if (!name) return;
+
+      if (isDemoMode) {
+        const newAcc = { id: 'acc_' + Date.now(), name, balance: initBal, createdAt: Date.now() };
+        accounts.push(newAcc);
+        selectedAccountId = newAcc.id;
+        if (initBal > 0) {
+          transactions.unshift({
+            id: 'tx_' + Date.now(),
+            accountId: newAcc.id,
+            type: 'IN',
+            amount: initBal,
+            description: 'Số dư khởi tạo ban đầu',
+            createdAt: Date.now()
+          });
+        }
+        saveLocalData();
+        renderAll();
+      } else {
+        const docRef = await addDoc(collection(db, `users/${currentUser.uid}/accounts`), {
+          name,
+          balance: initBal,
+          createdAt: Date.now()
+        });
+        selectedAccountId = docRef.id;
+        if (initBal > 0) {
+          await addDoc(collection(db, `users/${currentUser.uid}/transactions`), {
+            accountId: docRef.id,
+            type: 'IN',
+            amount: initBal,
+            description: 'Số dư khởi tạo ban đầu',
+            createdAt: Date.now()
+          });
+        }
+      }
+
+      document.getElementById('new-acc-name').value = '';
+      document.getElementById('new-acc-balance').value = '0';
+      showToast(`Đã thêm tài khoản "${name}"`);
+    });
+
+    window.deleteAccount = async (accId, e) => {
+      e.stopPropagation();
+      const acc = accounts.find(a => a.id === accId);
+      if (!acc) return;
+      if (!confirm(`Bạn có chắc muốn xóa tài khoản "${acc.name}" và toàn bộ dòng tiền của tài khoản này?`)) return;
+
+      if (isDemoMode) {
+        accounts = accounts.filter(a => a.id !== accId);
+        transactions = transactions.filter(t => t.accountId !== accId);
+        if (selectedAccountId === accId) selectedAccountId = accounts[0]?.id || null;
+        saveLocalData();
+        renderAll();
+      } else {
+        await deleteDoc(doc(db, `users/${currentUser.uid}/accounts`, accId));
+        const relatedTx = transactions.filter(t => t.accountId === accId);
+        for (const tx of relatedTx) {
+          await deleteDoc(doc(db, `users/${currentUser.uid}/transactions`, tx.id));
+        }
+      }
+      showToast(`Đã xóa tài khoản "${acc.name}"`);
+    };
+
+    window.selectAccount = (accId) => {
+      selectedAccountId = accId;
+      renderAll();
+    };
+
+    // Xử lý Nhập Khoản Thu
+    document.getElementById('income-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const amount = Number(document.getElementById('in-amount').value);
+      const source = document.getElementById('in-source').value.trim();
+      const accId = document.getElementById('in-account').value;
+      const targetAcc = accounts.find(a => a.id === accId);
+      if (!targetAcc || amount <= 0) return;
+
+      const newBalance = Number(targetAcc.balance) + amount;
+
+      if (isDemoMode) {
+        targetAcc.balance = newBalance;
+        transactions.unshift({
+          id: 'tx_' + Date.now(),
+          accountId: accId,
+          type: 'IN',
+          amount,
+          description: source,
+          createdAt: Date.now()
+        });
+        selectedAccountId = accId;
+        saveLocalData();
+        renderAll();
+      } else {
+        await updateDoc(doc(db, `users/${currentUser.uid}/accounts`, accId), { balance: newBalance });
+        await addDoc(collection(db, `users/${currentUser.uid}/transactions`), {
+          accountId: accId,
+          type: 'IN',
+          amount,
+          description: source,
+          createdAt: Date.now()
+        });
+        selectedAccountId = accId;
+      }
+
+      document.getElementById('in-amount').value = '';
+      document.getElementById('in-source').value = '';
+      showToast(`Đã cộng ${formatVND(amount)} vào ${targetAcc.name}`);
+    });
+
+    // Xử lý Nhập Khoản Chi
+    document.getElementById('expense-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const amount = Number(document.getElementById('out-amount').value);
+      const purpose = document.getElementById('out-purpose').value.trim();
+      const accId = document.getElementById('out-account').value;
+      const targetAcc = accounts.find(a => a.id === accId);
+      if (!targetAcc || amount <= 0) return;
+
+      const newBalance = Number(targetAcc.balance) - amount;
+
+      if (isDemoMode) {
+        targetAcc.balance = newBalance;
+        transactions.unshift({
+          id: 'tx_' + Date.now(),
+          accountId: accId,
+          type: 'OUT',
+          amount,
+          description: purpose,
+          createdAt: Date.now()
+        });
+        selectedAccountId = accId;
+        saveLocalData();
+        renderAll();
+      } else {
+        await updateDoc(doc(db, `users/${currentUser.uid}/accounts`, accId), { balance: newBalance });
+        await addDoc(collection(db, `users/${currentUser.uid}/transactions`), {
+          accountId: accId,
+          type: 'OUT',
+          amount,
+          description: purpose,
+          createdAt: Date.now()
+        });
+        selectedAccountId = accId;
+      }
+
+      document.getElementById('out-amount').value = '';
+      document.getElementById('out-purpose').value = '';
+      showToast(`Đã chi ${formatVND(amount)} từ ${targetAcc.name}`);
+    });
+
+    // Xóa 1 dòng giao dịch (và hoàn lại số dư tương ứng)
+    window.deleteTransaction = async (txId) => {
+      const tx = transactions.find(t => t.id === txId);
+      if (!tx) return;
+      const acc = accounts.find(a => a.id === tx.accountId);
+      const revertedBalance = acc
+        ? (tx.type === 'IN' ? Number(acc.balance) - Number(tx.amount) : Number(acc.balance) + Number(tx.amount))
+        : 0;
+
+      if (isDemoMode) {
+        if (acc) acc.balance = revertedBalance;
+        transactions = transactions.filter(t => t.id !== txId);
+        saveLocalData();
+        renderAll();
+      } else {
+        if (acc) {
+          await updateDoc(doc(db, `users/${currentUser.uid}/accounts`, acc.id), { balance: revertedBalance });
+        }
+        await deleteDoc(doc(db, `users/${currentUser.uid}/transactions`, txId));
+      }
+      showToast("Đã xóa giao dịch và cập nhật lại số dư");
+    };
+
+    // =========================================================================
+    // 5. TRÌNH TẠO VĂN BẢN XIN XÉT DUYỆT KHOẢN CHI + NÚT COPY
+    // =========================================================================
+    const reqAmountInput = document.getElementById('req-amount');
+    const reqPurposeInput = document.getElementById('req-purpose');
+    const reqOutput = document.getElementById('req-output');
+
+    function updateApprovalText() {
+      const amount = reqAmountInput.value.trim();
+      const purpose = reqPurposeInput.value.trim();
+      if (!amount && !purpose) {
+        reqOutput.value = '';
+        return;
+      }
+      const nowStr = new Date().toLocaleString('vi-VN');
+      reqOutput.value =
+`📋 ĐỀ XUẤT XÉT DUYỆT KHOẢN CHI
+- Thời gian tạo: ${nowStr}
+- Số tiền đề xuất: ${amount ? formatVND(amount) : '...'}
+- Mục đích chi: ${purpose || '...'}
+Kính đề nghị bộ phận quản lý xem xét và phê duyệt khoản chi trên. Xin cảm ơn!`;
+    }
+
+    reqAmountInput.addEventListener('input', updateApprovalText);
+    reqPurposeInput.addEventListener('input', updateApprovalText);
+
+    document.getElementById('btn-copy-req').addEventListener('click', async () => {
+      if (!reqOutput.value.trim()) {
+        showToast("Vui lòng nhập số tiền và mục đích chi trước khi Copy!");
+        return;
+      }
+      await navigator.clipboard.writeText(reqOutput.value);
+      showToast("Đã copy văn bản xin xét duyệt vào bộ nhớ tạm!");
+    });
+
+    // =========================================================================
+    // 6. RENDER GIAO DIỆN
+    // =========================================================================
+    function renderAll() {
+      // Tổng tất cả tài khoản
+      const totalAll = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+      document.getElementById('total-all-accounts').textContent = formatVND(totalAll);
+
+      // Danh sách thẻ tài khoản
+      const accListEl = document.getElementById('accounts-list');
+      if (accounts.length === 0) {
+        accListEl.innerHTML = `<div class="col-span-full text-center py-6 text-slate-400 text-sm">Chưa có tài khoản nào. Hãy thêm tài khoản ở góc trên bên phải.</div>`;
+      } else {
+        accListEl.innerHTML = accounts.map(acc => {
+          const isSelected = acc.id === selectedAccountId;
+          return `
+            <div onclick="selectAccount('${acc.id}')"
+              class="cursor-pointer rounded-2xl p-4 border transition-all relative ${
+                isSelected
+                  ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20'
+                  : 'bg-slate-50/60 border-slate-200 hover:border-blue-300'
+              }">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="text-xs font-semibold uppercase tracking-wider ${isSelected ? 'text-blue-600' : 'text-slate-400'}">
+                    ${isSelected ? '● Đang xem dòng tiền' : 'Tài khoản'}
+                  </span>
+                  <h4 class="font-bold text-slate-800 text-base mt-0.5">${acc.name}</h4>
+                </div>
+                <button onclick="deleteAccount('${acc.id}', event)" title="Xóa tài khoản này"
+                  class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition">
+                  <i class="fa-solid fa-trash-can text-xs"></i>
+                </button>
+              </div>
+              <p class="text-lg font-extrabold mt-3 ${Number(acc.balance) >= 0 ? 'text-slate-900' : 'text-rose-600'}">
+                ${formatVND(acc.balance)}
+              </p>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Cập nhật dropdown chọn tài khoản ở Form Thu & Chi
+      const optionsHtml = `<option value="">-- Chọn tài khoản --</option>` +
+        accounts.map(a => `<option value="${a.id}" ${a.id === selectedAccountId ? 'selected' : ''}>${a.name} (${formatVND(a.balance)})</option>`).join('');
+      document.getElementById('in-account').innerHTML = optionsHtml;
+      document.getElementById('out-account').innerHTML = optionsHtml;
+
+      // Render Bảng dòng tiền riêng của tài khoản đang chọn
+      const currentAcc = accounts.find(a => a.id === selectedAccountId);
+      const tbody = document.getElementById('cashflow-tbody');
+
+      if (!currentAcc) {
+        document.getElementById('current-table-acc-name').textContent = 'Chưa chọn tài khoản';
+        document.getElementById('acc-total-in').textContent = '0 ₫';
+        document.getElementById('acc-total-out').textContent = '0 ₫';
+        document.getElementById('acc-current-bal').textContent = '0 ₫';
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">Hãy thêm hoặc chọn một tài khoản để xem bảng dòng tiền riêng.</td></tr>`;
+        return;
+      }
+
+      document.getElementById('current-table-acc-name').textContent = currentAcc.name;
+      const accTx = transactions.filter(t => t.accountId === currentAcc.id);
+      const totalIn = accTx.filter(t => t.type === 'IN').reduce((s, t) => s + Number(t.amount), 0);
+      const totalOut = accTx.filter(t => t.type === 'OUT').reduce((s, t) => s + Number(t.amount), 0);
+
+      document.getElementById('acc-total-in').textContent = formatVND(totalIn);
+      document.getElementById('acc-total-out').textContent = formatVND(totalOut);
+      document.getElementById('acc-current-bal').textContent = formatVND(currentAcc.balance);
+
+      if (accTx.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400">Tài khoản "${currentAcc.name}" chưa có giao dịch thu/chi nào.</td></tr>`;
+      } else {
+        tbody.innerHTML = accTx.map(tx => {
+          const isIncome = tx.type === 'IN';
+          const dateStr = new Date(tx.createdAt).toLocaleString('vi-VN');
+          return `
+            <tr class="hover:bg-slate-50/80 transition">
+              <td class="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">${dateStr}</td>
+              <td class="py-3 px-4">
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                  isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                }">
+                  <i class="fa-solid ${isIncome ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+                  ${isIncome ? 'Khoản Thu' : 'Khoản Chi'}
+                </span>
+              </td>
+              <td class="py-3 px-4 font-medium text-slate-800">${tx.description}</td>
+              <td class="py-3 px-4 text-right font-bold whitespace-nowrap ${isIncome ? 'text-emerald-600' : 'text-rose-600'}">
+                ${isIncome ? '+' : '-'}${formatVND(tx.amount)}
+              </td>
+              <td class="py-3 px-4 text-center">
+                <button onclick="deleteTransaction('${tx.id}')" title="Xóa giao dịch này"
+                  class="text-slate-400 hover:text-red-600 transition">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+  </script>
+</body>
+</html>
